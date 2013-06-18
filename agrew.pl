@@ -89,6 +89,8 @@ sub process_query {
     my @results;
 
     # Right now, we only use 'query'. Look up https://github.com/OpenRefine/OpenRefine/wiki/Reconciliation-Service-API#single-query-mode for other options.
+    # Ideas:
+    #   - use 'Family' for high-level filtering.
     my $name = $query{'query'};
 
     # TODO: Better URLification.
@@ -117,16 +119,58 @@ sub process_query {
             # No matches.
         } else {
             # TODO: At this point, summarize down to one match per name. But we'll do that latter.
+            my %unique_matches;
+            
             foreach my $match (@$gbif_match) {
-                my %result;
+                my $name = $match->{'canonicalName'} // $match->{'scientificName'};
+                my $authority = $match->{'authorship'} // 'unknown';
+                my $kingdom = $match->{'kingdom'} // 'Life';
 
-                $result{'id'} = $content;   # hee hee
-                $result{'name'} = $match->{'scientificName'};
-                $result{'type'} = ['http://localhost:3333/taxref/result'];
-                $result{'score'} = 0.5;
-                $result{'match'} = $JSON::false;
+                $unique_matches{$name}{$authority}{$kingdom} = []
+                    unless exists $unique_matches{$name}{$authority}{$kingdom};
 
-                push @results, \%result;
+                push @{$unique_matches{$name}{$authority}{$kingdom}}, $match;
+            }
+
+            foreach my $name (sort keys %unique_matches) {
+                foreach my $authority (sort keys %{$unique_matches{$name}}) {
+                    foreach my $kingdom (sort keys %{$unique_matches{$name}{$authority}}) {
+                        my @matches = @{$unique_matches{$name}{$authority}{$kingdom}};
+
+                        # How do we summarize matches? EASY.
+                        my %summary;
+                        foreach my $match (@matches) {
+                            foreach my $field (keys %$match) {
+                                $summary{$field}{$match->{$field}} = 0
+                                    unless exists $summary{$field}{$match->{$field}};
+                                $summary{$field}{$match->{$field}}++;
+                            }
+                        }
+                        
+                        # Further simplify fields common for ALL checklists.
+                        my $match_count = scalar @matches;
+                        foreach my $field (keys %summary) {
+                            foreach my $value (keys %{$summary{$field}}) {
+                                my $count = $summary{$field}{$value};
+
+                                if($count == $match_count) {
+                                    $summary{$field} = $value;
+                                }
+                            }
+                        }
+
+                        my %result;
+
+                        $result{'id'} = $content;   # hee hee
+                        $result{'name'} = "$name $authority ($kingdom)";
+                        $result{'type'} = ['http://localhost:3333/taxref/result'];
+                        $result{'score'} = 0.5;
+                        $result{'match'} = $JSON::false;
+                        $result{'summary'} = \%summary;
+
+                        push @results, \%result;
+                    }
+                }
             }
         }
     }
