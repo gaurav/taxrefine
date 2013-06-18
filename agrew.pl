@@ -131,6 +131,15 @@ sub process_query {
         }
     }
 
+    # Add a dummy result so we know that all results are getting through.
+    push @results, {
+        id =>       "0",
+        name =>     "(entries end here)",
+        type =>     ['http://localhost:3333/taxref/result'],
+        score =>    0,
+        match =>    $JSON::false
+    };
+
     return { 'result' => \@results };
 }
 
