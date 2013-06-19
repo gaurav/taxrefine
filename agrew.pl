@@ -164,7 +164,7 @@ sub process_query {
                         $result{'id'} = $content;   # hee hee
                         $result{'name'} = "$name $authority ($kingdom)";
                         $result{'type'} = ['http://localhost:3333/taxref/result'];
-                        $result{'score'} = 0.5;
+                        $result{'score'} = scalar @matches;
                         $result{'match'} = $JSON::false;
                         $result{'summary'} = \%summary;
 
@@ -175,8 +175,10 @@ sub process_query {
         }
     }
 
+    my @sorted_results = sort { $b->{'score'} <=> $a->{'score'} } @results;
+
     # Add a dummy result so we know that all results are getting through.
-    push @results, {
+    push @sorted_results, {
         id =>       "0",
         name =>     "(entries end here)",
         type =>     ['http://localhost:3333/taxref/result'],
@@ -184,7 +186,7 @@ sub process_query {
         match =>    $JSON::false
     };
 
-    return { 'result' => \@results };
+    return { 'result' => \@sorted_results };
 }
 
 start;
