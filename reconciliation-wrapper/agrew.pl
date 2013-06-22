@@ -23,7 +23,7 @@ set logger => 'console';
 
 # Do nothing here.
 get '/' => sub {
-    return 'boo!';
+    redirect('/reconcile');
 };
 
 # Switch.
