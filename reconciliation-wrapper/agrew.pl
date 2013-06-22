@@ -11,6 +11,9 @@ use v5.010;
 use strict;
 use warnings;
 
+# Version
+our $VERSION = '0.1-dev1';
+
 # Set up a UserAgent to call GBIF's API on.
 use LWP::UserAgent;
 my $ua = LWP::UserAgent->new;
@@ -62,9 +65,19 @@ any '/reconcile' => sub {
 # Return the service metadata.
 sub get_service_metadata {
     return {
-        'name' => 'agrew.pl (Api.Gbif.org REconciliation Wrapper)',
-        'identifierSpace' => 'http://portal.gbif.org/ws/response/gbif', # Copied from Rod Page's code at https://github.com/rdmpage/phyloinformatics/blob/master/services/reconciliation_gbif.php#L16, not sure what it does.
-        'schemaSpace' => 'http://rdf.freebase.com/ns/type.object.id',
+        'name' => "agrew.pl (Api.Gbif.org REconciliation Wrapper)/$VERSION",
+        'identifierSpace' => 'http://portal.gbif.org/ws/response/gbif', 
+            # Copied from Rod Page's code at https://github.com/rdmpage/phyloinformatics/blob/master/services/reconciliation_gbif.php#L16, since we both use the same identifier; we know its the same identifier, because the 'view' and 'preview' URLs are the same.
+        'view' => {
+            'url' => 'http://data.gbif.org/species/{{id}}'
+        },
+        'preview' => {
+            'url' => 'http://data.gbif.org/species/{{id}}',
+            'width' => 430,
+            'height' => 300
+        },
+        'schemaSpace' => 'http://rs.tdwg.org/dwc/terms/',
+            # Since we mostly use DwC terms.
     };
 }
 
@@ -86,20 +99,25 @@ sub process_query {
     my $query_ref = shift;
     my %query = %$query_ref;
 
+    say STDERR "process_query!";
+
     my @results;
 
     # Right now, we only use 'query'. Look up https://github.com/OpenRefine/OpenRefine/wiki/Reconciliation-Service-API#single-query-mode for other options.
     # Ideas:
     #   - use 'Family' for high-level filtering.
     my $name = $query{'query'};
+    my $name_in_url = $name;
 
     # TODO: Better URLification.
-    $name =~ s/ /%20/g;
+    $name_in_url =~ s/ /%20/g;
 
     # In case of errors, try 10 times.
+    my $request_time_start = time;
+
     my $response;
     for(my $x = 0; $x < 10; $x++) {
-        my $url = 'http://api.gbif.org/name_usage/' . $name;
+        my $url = 'http://api.gbif.org/name_usage/' . $name_in_url;
         $response = $ua->get($url);
 
         if($response->is_success) {
@@ -120,6 +138,9 @@ sub process_query {
         } else {
             # TODO: At this point, summarize down to one match per name. But we'll do that latter.
             my %unique_matches;
+
+            my $time_taken = (time - $request_time_start);
+            say STDERR (scalar @$gbif_match) . " matches found on GBIF for '$name' in $time_taken.";
             
             foreach my $match (@$gbif_match) {
                 my $name = $match->{'canonicalName'} // $match->{'scientificName'};
@@ -138,12 +159,20 @@ sub process_query {
                         my @matches = @{$unique_matches{$name}{$authority}{$kingdom}};
 
                         # How do we summarize matches? EASY.
+                        my $gbif_key;
+
                         my %summary;
                         foreach my $match (@matches) {
                             foreach my $field (keys %$match) {
                                 $summary{$field}{$match->{$field}} = 0
                                     unless exists $summary{$field}{$match->{$field}};
                                 $summary{$field}{$match->{$field}}++;
+
+                                unless(defined $gbif_key) {
+                                    if($field eq 'key') {
+                                        $gbif_key = $match->{$field};
+                                    }
+                                }
                             }
                         }
                         
@@ -161,12 +190,13 @@ sub process_query {
 
                         my %result;
 
-                        $result{'id'} = $content;   # hee hee
+                        $result{'id'} = $gbif_key;
                         $result{'name'} = "$name $authority ($kingdom)";
                         $result{'type'} = ['http://localhost:3333/taxref/result'];
                         $result{'score'} = scalar @matches;
                         $result{'match'} = $JSON::false;
                         $result{'summary'} = \%summary;
+                        $result{'full_gbif'} = $content;
 
                         push @results, \%result;
                     }

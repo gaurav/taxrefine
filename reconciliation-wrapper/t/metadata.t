@@ -55,3 +55,5 @@ subtest "Server responds correctly to a simple request" => sub {
     isnt($json_object->{'schemaSpace'}, "",
         "Checking for non-blank 'schemaSpace' in service metadata");
 };
+
+# TODO: Test 'callback' for JSONP output.
