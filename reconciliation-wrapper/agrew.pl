@@ -66,8 +66,7 @@ any '/reconcile' => sub {
 sub get_service_metadata {
     return {
         'name' => "agrew.pl (Api.Gbif.org REconciliation Wrapper)/$VERSION",
-        'identifierSpace' => 'http://portal.gbif.org/ws/response/gbif', 
-            # Copied from Rod Page's code at https://github.com/rdmpage/phyloinformatics/blob/master/services/reconciliation_gbif.php#L16, since we both use the same identifier; we know its the same identifier, because the 'view' and 'preview' URLs are the same.
+        'identifierSpace' => 'http://ecat-dev.gbif.org/usage/',
         'view' => {
             'url' => 'http://ecat-dev.gbif.org/usage/{{id}}#contentLeft'
         },
@@ -192,7 +191,7 @@ sub process_query {
 
                         $result{'id'} = $gbif_key;
                         $result{'name'} = "$name $authority ($kingdom)";
-                        $result{'type'} = ['http://localhost:3333/taxref/result'];
+                        $result{'type'} = ['http://ecat-dev.gbif.org/usage/'];
                         $result{'score'} = scalar @matches;
                         $result{'match'} = $JSON::false;
                         $result{'summary'} = \%summary;
