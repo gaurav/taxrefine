@@ -11,8 +11,13 @@ use v5.010;
 use strict;
 use warnings;
 
-# Version
-our $VERSION = '0.1-dev1';
+use Data::Dumper;
+use Time::HiRes qw/time/;
+
+# Version and settings.
+our $VERSION = '0.1-dev2';
+
+our $FLAG_DISPLAY_ENTRIES_END_HERE = 0;
 
 # Set up a UserAgent to call GBIF's API on.
 use LWP::UserAgent;
@@ -98,8 +103,6 @@ sub process_query {
     my $query_ref = shift;
     my %query = %$query_ref;
 
-    say STDERR "process_query!";
-
     my @results;
 
     # Right now, we only use 'query'. Look up https://github.com/OpenRefine/OpenRefine/wiki/Reconciliation-Service-API#single-query-mode for other options.
@@ -107,6 +110,8 @@ sub process_query {
     #   - use 'Family' for high-level filtering.
     my $name = $query{'query'};
     my $name_in_url = $name;
+
+    say STDERR "Query: '$name'";
 
     # TODO: Better URLification.
     $name_in_url =~ s/ /%20/g;
@@ -139,81 +144,97 @@ sub process_query {
             my %unique_matches;
 
             my $time_taken = (time - $request_time_start);
-            say STDERR (scalar @$gbif_match) . " matches found on GBIF for '$name' in $time_taken.";
+            printf STDERR "  %d matches found on GBIF for '$name' in %.4f ms.\n", (scalar @$gbif_match), ($time_taken*1000);
             
             foreach my $match (@$gbif_match) {
                 my $name = $match->{'canonicalName'} // $match->{'scientificName'};
+                my $accepted_name = $match->{'acceptedNameUsage'} // $match->{'accepted'} // ''; 
                 my $authority = $match->{'authorship'} // 'unknown';
                 my $kingdom = $match->{'kingdom'} // 'Life';
 
-                $unique_matches{$name}{$authority}{$kingdom} = []
-                    unless exists $unique_matches{$name}{$authority}{$kingdom};
+                $unique_matches{$name}{$accepted_name}{$authority}{$kingdom} = []
+                    unless exists $unique_matches{$name}{$accepted_name}{$authority}{$kingdom};
 
-                push @{$unique_matches{$name}{$authority}{$kingdom}}, $match;
+                push @{$unique_matches{$name}{$accepted_name}{$authority}{$kingdom}}, $match;
             }
 
             foreach my $name (sort keys %unique_matches) {
-                foreach my $authority (sort keys %{$unique_matches{$name}}) {
-                    foreach my $kingdom (sort keys %{$unique_matches{$name}{$authority}}) {
-                        my @matches = @{$unique_matches{$name}{$authority}{$kingdom}};
+                foreach my $accepted_name (sort keys %{$unique_matches{$name}}) {
+                    foreach my $authority (sort keys %{$unique_matches{$name}{$accepted_name}}) {
+                        foreach my $kingdom (sort keys %{$unique_matches{$name}{$accepted_name}{$authority}}) {
+                            my @matches = @{$unique_matches{$name}{$accepted_name}{$authority}{$kingdom}};
 
-                        # How do we summarize matches? EASY.
-                        my $gbif_key;
+                            # How do we summarize matches? EASY.
+                            my $gbif_key;
 
-                        my %summary;
-                        foreach my $match (@matches) {
-                            foreach my $field (keys %$match) {
-                                $summary{$field}{$match->{$field}} = 0
-                                    unless exists $summary{$field}{$match->{$field}};
-                                $summary{$field}{$match->{$field}}++;
+                            my %summary;
+                            foreach my $match (@matches) {
+                                foreach my $field (keys %$match) {
+                                    my $value = $match->{$field};
 
-                                unless(defined $gbif_key) {
-                                    if($field eq 'key') {
-                                        $gbif_key = $match->{$field};
+                                    $value = Dumper($value)
+                                        unless ref($value) eq '';
+
+                                    $summary{$field}{$value} = 0
+                                        unless exists $summary{$field}{$value};
+                                    $summary{$field}{$value}++;
+
+                                    unless(defined $gbif_key) {
+                                        if($field eq 'key') {
+                                            $gbif_key = $value;
+                                        }
                                     }
                                 }
                             }
-                        }
-                        
-                        # Further simplify fields common for ALL checklists.
-                        my $match_count = scalar @matches;
-                        foreach my $field (keys %summary) {
-                            foreach my $value (keys %{$summary{$field}}) {
-                                my $count = $summary{$field}{$value};
+                            
+                            # Further simplify fields common for ALL checklists.
+                            my $match_count = scalar @matches;
+                            foreach my $field (keys %summary) {
+                                foreach my $value (keys %{$summary{$field}}) {
+                                    my $count = $summary{$field}{$value};
 
-                                if($count == $match_count) {
-                                    $summary{$field} = $value;
+                                    if($count == $match_count) {
+                                        $summary{$field} = $value;
+                                    }
                                 }
                             }
+
+                            my %result;
+
+                            $result{'id'} = $gbif_key;
+                            $result{'name'} = "$name $authority";
+                            $result{'name'} .= " [=> $accepted_name]" unless $accepted_name eq '';
+                            $result{'name'} .= " ($kingdom)";
+                            $result{'type'} = ['http://ecat-dev.gbif.org/usage/'];
+                            $result{'score'} = scalar @matches;
+                            $result{'match'} = $JSON::false;
+                            $result{'summary'} = \%summary;
+                            # $result{'full_gbif'} = $content;
+
+                            push @results, \%result;
                         }
-
-                        my %result;
-
-                        $result{'id'} = $gbif_key;
-                        $result{'name'} = "$name $authority ($kingdom)";
-                        $result{'type'} = ['http://ecat-dev.gbif.org/usage/'];
-                        $result{'score'} = scalar @matches;
-                        $result{'match'} = $JSON::false;
-                        $result{'summary'} = \%summary;
-                        $result{'full_gbif'} = $content;
-
-                        push @results, \%result;
                     }
                 }
             }
+
+            $time_taken = (time - $request_time_start);
+            printf STDERR "  Summarized '$name' to %d matches in %.4f ms.\n", (scalar @results), $time_taken*1000;
+            
         }
     }
 
     my @sorted_results = sort { $b->{'score'} <=> $a->{'score'} } @results;
 
     # Add a dummy result so we know that all results are getting through.
-    push @sorted_results, {
-        id =>       "0",
-        name =>     "(entries end here)",
-        type =>     ['http://localhost:3333/taxref/result'],
-        score =>    0,
-        match =>    $JSON::false
-    };
+    if($FLAG_DISPLAY_ENTRIES_END_HERE) {
+        push @sorted_results, {
+            id =>       "0",
+            name =>     "(entries end here)",
+            type =>     ['http://localhost:3333/taxref/result'],
+            score =>    0,
+            match =>    $JSON::false
+        };
+    }
 
     return { 'result' => \@sorted_results };
 }
