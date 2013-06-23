@@ -11,8 +11,13 @@ use v5.010;
 use strict;
 use warnings;
 
-# Version
+use Data::Dumper;
+use Time::HiRes qw/time/;
+
+# Version and settings.
 our $VERSION = '0.1-dev1';
+
+our $FLAG_DISPLAY_ENTRIES_END_HERE = 0;
 
 # Set up a UserAgent to call GBIF's API on.
 use LWP::UserAgent;
@@ -99,8 +104,6 @@ sub process_query {
     my $query_ref = shift;
     my %query = %$query_ref;
 
-    say STDERR "process_query!";
-
     my @results;
 
     # Right now, we only use 'query'. Look up https://github.com/OpenRefine/OpenRefine/wiki/Reconciliation-Service-API#single-query-mode for other options.
@@ -108,6 +111,8 @@ sub process_query {
     #   - use 'Family' for high-level filtering.
     my $name = $query{'query'};
     my $name_in_url = $name;
+
+    say STDERR "Query: '$name'";
 
     # TODO: Better URLification.
     $name_in_url =~ s/ /%20/g;
@@ -140,7 +145,7 @@ sub process_query {
             my %unique_matches;
 
             my $time_taken = (time - $request_time_start);
-            say STDERR (scalar @$gbif_match) . " matches found on GBIF for '$name' in $time_taken.";
+            printf STDERR "  %d matches found on GBIF for '$name' in %.4f ms.\n", (scalar @$gbif_match), ($time_taken*1000);
             
             foreach my $match (@$gbif_match) {
                 my $name = $match->{'canonicalName'} // $match->{'scientificName'};
@@ -164,13 +169,18 @@ sub process_query {
                         my %summary;
                         foreach my $match (@matches) {
                             foreach my $field (keys %$match) {
-                                $summary{$field}{$match->{$field}} = 0
-                                    unless exists $summary{$field}{$match->{$field}};
-                                $summary{$field}{$match->{$field}}++;
+                                my $value = $match->{$field};
+
+                                $value = Dumper($value)
+                                    unless ref($value) eq '';
+
+                                $summary{$field}{$value} = 0
+                                    unless exists $summary{$field}{$value};
+                                $summary{$field}{$value}++;
 
                                 unless(defined $gbif_key) {
                                     if($field eq 'key') {
-                                        $gbif_key = $match->{$field};
+                                        $gbif_key = $value;
                                     }
                                 }
                             }
@@ -202,19 +212,25 @@ sub process_query {
                     }
                 }
             }
+
+            $time_taken = (time - $request_time_start);
+            printf STDERR "  Summarized to %d matches in %.4f ms.\n", (scalar @results), $time_taken*1000;
+            
         }
     }
 
     my @sorted_results = sort { $b->{'score'} <=> $a->{'score'} } @results;
 
     # Add a dummy result so we know that all results are getting through.
-    push @sorted_results, {
-        id =>       "0",
-        name =>     "(entries end here)",
-        type =>     ['http://localhost:3333/taxref/result'],
-        score =>    0,
-        match =>    $JSON::false
-    };
+    if($FLAG_DISPLAY_ENTRIES_END_HERE) {
+        push @sorted_results, {
+            id =>       "0",
+            name =>     "(entries end here)",
+            type =>     ['http://localhost:3333/taxref/result'],
+            score =>    0,
+            match =>    $JSON::false
+        };
+    }
 
     return { 'result' => \@sorted_results };
 }
