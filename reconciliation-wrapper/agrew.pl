@@ -149,72 +149,78 @@ sub process_query {
             
             foreach my $match (@$gbif_match) {
                 my $name = $match->{'canonicalName'} // $match->{'scientificName'};
+                my $accepted_name = $match->{'acceptedNameUsage'} // $match->{'accepted'} // ''; 
                 my $authority = $match->{'authorship'} // 'unknown';
                 my $kingdom = $match->{'kingdom'} // 'Life';
 
-                $unique_matches{$name}{$authority}{$kingdom} = []
-                    unless exists $unique_matches{$name}{$authority}{$kingdom};
+                $unique_matches{$name}{$accepted_name}{$authority}{$kingdom} = []
+                    unless exists $unique_matches{$name}{$accepted_name}{$authority}{$kingdom};
 
-                push @{$unique_matches{$name}{$authority}{$kingdom}}, $match;
+                push @{$unique_matches{$name}{$accepted_name}{$authority}{$kingdom}}, $match;
             }
 
             foreach my $name (sort keys %unique_matches) {
-                foreach my $authority (sort keys %{$unique_matches{$name}}) {
-                    foreach my $kingdom (sort keys %{$unique_matches{$name}{$authority}}) {
-                        my @matches = @{$unique_matches{$name}{$authority}{$kingdom}};
+                foreach my $accepted_name (sort keys %{$unique_matches{$name}}) {
+                    foreach my $authority (sort keys %{$unique_matches{$name}{$accepted_name}}) {
+                        foreach my $kingdom (sort keys %{$unique_matches{$name}{$accepted_name}{$authority}}) {
+                            my @matches = @{$unique_matches{$name}{$accepted_name}{$authority}{$kingdom}};
 
-                        # How do we summarize matches? EASY.
-                        my $gbif_key;
+                            # How do we summarize matches? EASY.
+                            my $gbif_key;
 
-                        my %summary;
-                        foreach my $match (@matches) {
-                            foreach my $field (keys %$match) {
-                                my $value = $match->{$field};
+                            my %summary;
+                            foreach my $match (@matches) {
+                                foreach my $field (keys %$match) {
+                                    my $value = $match->{$field};
 
-                                $value = Dumper($value)
-                                    unless ref($value) eq '';
+                                    $value = Dumper($value)
+                                        unless ref($value) eq '';
 
-                                $summary{$field}{$value} = 0
-                                    unless exists $summary{$field}{$value};
-                                $summary{$field}{$value}++;
+                                    $summary{$field}{$value} = 0
+                                        unless exists $summary{$field}{$value};
+                                    $summary{$field}{$value}++;
 
-                                unless(defined $gbif_key) {
-                                    if($field eq 'key') {
-                                        $gbif_key = $value;
+                                    unless(defined $gbif_key) {
+                                        if($field eq 'key') {
+                                            $gbif_key = $value;
+                                        }
                                     }
                                 }
                             }
-                        }
-                        
-                        # Further simplify fields common for ALL checklists.
-                        my $match_count = scalar @matches;
-                        foreach my $field (keys %summary) {
-                            foreach my $value (keys %{$summary{$field}}) {
-                                my $count = $summary{$field}{$value};
+                            
+                            # Further simplify fields common for ALL checklists.
+                            my $match_count = scalar @matches;
+                            foreach my $field (keys %summary) {
+                                foreach my $value (keys %{$summary{$field}}) {
+                                    my $count = $summary{$field}{$value};
 
-                                if($count == $match_count) {
-                                    $summary{$field} = $value;
+                                    if($count == $match_count) {
+                                        $summary{$field} = $value;
+                                    }
                                 }
                             }
+
+                            my %result;
+
+                            $result{'id'} = $gbif_key;
+                            $result{'name'} = "$name $authority";
+                            $result{'name'} .= " [=> $accepted_name]" unless $accepted_name eq '';
+                            $result{'name'} .= " ($kingdom)";
+
+                            $result{'type'} = ['http://localhost:3333/taxref/result'];
+                            $result{'score'} = scalar @matches;
+                            $result{'match'} = $JSON::false;
+                            $result{'summary'} = \%summary;
+                            # $result{'full_gbif'} = $content;
+
+                            push @results, \%result;
                         }
-
-                        my %result;
-
-                        $result{'id'} = $gbif_key;
-                        $result{'name'} = "$name $authority ($kingdom)";
-                        $result{'type'} = ['http://localhost:3333/taxref/result'];
-                        $result{'score'} = scalar @matches;
-                        $result{'match'} = $JSON::false;
-                        $result{'summary'} = \%summary;
-                        $result{'full_gbif'} = $content;
-
-                        push @results, \%result;
                     }
                 }
             }
 
             $time_taken = (time - $request_time_start);
-            printf STDERR "  Summarized to %d matches in %.4f ms.\n", (scalar @results), $time_taken*1000;
+            printf STDERR "  Summarized '$name' to %d matches in %.4f ms.\n", (scalar @results), $time_taken*1000;
             
         }
     }
