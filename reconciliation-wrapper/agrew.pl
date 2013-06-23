@@ -207,7 +207,7 @@ sub process_query {
                             $result{'name'} .= " [=> $accepted_name]" unless $accepted_name eq '';
                             $result{'name'} .= " ($kingdom)";
 
-                            $result{'type'} = ['http://localhost:3333/taxref/result'];
+                            $result{'type'} = ['http://data.gbif.org/species/'];
                             $result{'score'} = scalar @matches;
                             $result{'match'} = $JSON::false;
                             $result{'summary'} = \%summary;
