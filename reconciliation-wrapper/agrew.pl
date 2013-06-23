@@ -69,10 +69,10 @@ sub get_service_metadata {
         'identifierSpace' => 'http://portal.gbif.org/ws/response/gbif', 
             # Copied from Rod Page's code at https://github.com/rdmpage/phyloinformatics/blob/master/services/reconciliation_gbif.php#L16, since we both use the same identifier; we know its the same identifier, because the 'view' and 'preview' URLs are the same.
         'view' => {
-            'url' => 'http://data.gbif.org/species/{{id}}'
+            'url' => 'http://ecat-dev.gbif.org/usage/{{id}}#contentLeft'
         },
         'preview' => {
-            'url' => 'http://data.gbif.org/species/{{id}}',
+            'url' => 'http://ecat-dev.gbif.org/usage/{{id}}#contentLeft',
             'width' => 430,
             'height' => 300
         },
