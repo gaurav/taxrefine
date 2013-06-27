@@ -15,7 +15,7 @@ use Data::Dumper;
 use Time::HiRes qw/time/;
 
 # Version and settings.
-our $VERSION = '0.1-dev2';
+our $VERSION = '0.1-dev3';
 
 our $FLAG_DISPLAY_ENTRIES_END_HERE = 0;
 
