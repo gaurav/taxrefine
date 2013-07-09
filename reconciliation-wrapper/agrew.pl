@@ -15,7 +15,9 @@ use Data::Dumper;
 use Time::HiRes qw/time/;
 
 # Version and settings.
-our $VERSION = '0.1-dev3';
+our $VERSION = '0.1-dev4';
+
+our $WEB_ROOT = '/gbifchecklists';
 
 our $FLAG_DISPLAY_ENTRIES_END_HERE = 0;
 
@@ -30,12 +32,12 @@ set show_errors => 1;
 set logger => 'console';
 
 # Do nothing here.
-get '/' => sub {
-    redirect('/reconcile');
+get "$WEB_ROOT/" => sub {
+    redirect("$WEB_ROOT/reconcile");
 };
 
 # Switch.
-any '/reconcile' => sub {
+any "$WEB_ROOT/reconcile" => sub {
     my $response = Dancer::SharedData->response;
     my $callback = param('callback');
     my $queries = param('queries');
