@@ -36,6 +36,11 @@ get "$WEB_ROOT/" => sub {
     redirect("$WEB_ROOT/reconcile");
 };
 
+# Point at the code from here.
+get "$WEB_ROOT/code" => sub {
+    redirect("https://github.com/gaurav/taxrefine/tree/master/reconciliation-wrapper");
+};
+
 # Switch.
 any "$WEB_ROOT/reconcile" => sub {
     my $response = Dancer::SharedData->response;
