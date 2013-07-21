@@ -80,12 +80,12 @@ sub get_service_metadata {
         'name' => "agrew.pl (Api.Gbif.org REconciliation Wrapper)/$VERSION",
         'identifierSpace' => 'http://uat.gbif.org/species/',
         'view' => {
-            'url' => 'http://uat.gbif.org/species/{{id}}#contentLeft'
+            'url' => 'http://uat.gbif.org/species/{{id}}#overview'
         },
         'preview' => {
-            'url' => 'http://uat.gbif.org/species/{{id}}#contentLeft',
-            'width' => 430,
-            'height' => 300
+            'url' => 'http://uat.gbif.org/species/{{id}}#overview',
+            'width' => 700,
+            'height' => 350 
         },
         'schemaSpace' => 'http://rs.tdwg.org/dwc/terms/',
             # Since we mostly use DwC terms.
