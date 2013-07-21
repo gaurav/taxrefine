@@ -15,7 +15,7 @@ use Data::Dumper;
 use Time::HiRes qw/time/;
 
 # Version and settings.
-our $VERSION = '0.1-dev4';
+our $VERSION = '0.1-dev5';
 
 our $WEB_ROOT = '/gbifchecklists';
 
@@ -78,12 +78,12 @@ any "$WEB_ROOT/reconcile" => sub {
 sub get_service_metadata {
     return {
         'name' => "agrew.pl (Api.Gbif.org REconciliation Wrapper)/$VERSION",
-        'identifierSpace' => 'http://ecat-dev.gbif.org/usage/',
+        'identifierSpace' => 'http://uat.gbif.org/species/',
         'view' => {
-            'url' => 'http://ecat-dev.gbif.org/usage/{{id}}#contentLeft'
+            'url' => 'http://uat.gbif.org/species/{{id}}#contentLeft'
         },
         'preview' => {
-            'url' => 'http://ecat-dev.gbif.org/usage/{{id}}#contentLeft',
+            'url' => 'http://uat.gbif.org/species/{{id}}#contentLeft',
             'width' => 430,
             'height' => 300
         },
