@@ -212,7 +212,7 @@ sub process_query {
                             $result{'name'} = "$name $authority";
                             $result{'name'} .= " [=> $accepted_name]" unless $accepted_name eq '';
                             $result{'name'} .= " ($kingdom)";
-                            $result{'type'} = ['http://ecat-dev.gbif.org/usage/'];
+                            $result{'type'} = ['http://uat.gbif.org/species/'];
                             $result{'score'} = scalar @matches;
                             $result{'match'} = $JSON::false;
                             $result{'summary'} = \%summary;
