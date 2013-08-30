@@ -6,5 +6,6 @@
 ** One of the great things about using [http://www.perldancer.org/ Dancer] is the number of [http://search.cpan.org/perldoc/Dancer::Deployment deployment options] available, including running the script directly as a self-contained web server.
 ** At the moment, I run Agrew on [http://search.cpan.org/~miyagawa/Starman Starman] on a local Unix socket, then proxy to that throw nginx on port 80. That way, Starman is never exposed directly on the internet, and both nginx and Starman run in a restricted, web-only account.
 * LWP::UserAgent (<tt>libwww-perl</tt>)
+* URI (<tt>liburi-perl</tt>)
 * JSON (<tt>libjson-perl</tt>)
 * [http://search.cpan.org/~yanick/Dancer/ Dancer] (<tt>libdancer-perl</tt>)
