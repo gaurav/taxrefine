@@ -122,6 +122,15 @@ sub process_query {
     my $time_taken = (time - $request_time_start);
     printf STDERR "  Retrieved %d matches for '$name' in %.4f ms.\n", (scalar @results), $time_taken*1000;
 
+    if((scalar @results) == 0) { 
+        say STDERR "  No matches found, carrying out full-text search instead.";
+
+        @results = get_gbif_full_text_matches_for_name($name);
+
+        $time_taken = (time - $request_time_start);
+        printf STDERR "  Retrieved %d matches for '$name' in %.4f ms.\n", (scalar @results), $time_taken*1000;
+    }
+
     my @summarized = summarize_name_usages(@results);
     $time_taken = (time - $request_time_start);
     printf STDERR "  Summarized '$name' to %d matches in %.4f ms.\n", (scalar @summarized), $time_taken*1000;
@@ -239,6 +248,56 @@ sub get_gbif_name_usages_for_name {
     }
 
     return @gbif_related;
+}
+
+sub get_gbif_full_text_matches_for_name {
+    my $name = shift;
+
+    my @matches;
+
+    sub gbif_ft_search($$$) {
+        my $name = shift;
+        my $name_in_url = uri_escape($name);    # URLification.
+
+        my $offset = shift;
+        my $limit = shift;
+
+        my $response = retry_url_until_success("http://api.gbif.org/name_usage/search?q=$name_in_url&offset=$offset&limit=$limit");
+        return () unless ($response->is_success);
+        
+        my $content = $response->decoded_content;
+        return from_json($content);   # This will croak on error, i.e. if given invalid input.
+    }
+
+    my $response = gbif_ft_search($name, 0, 50);
+    my $total = $response->{'count'};
+    push @matches, @{$response->{'results'}};
+
+    for(my $x = scalar(@matches); $x < $total; $x += 500) {
+        $response = gbif_ft_search($name, $x, $x + 500);
+        push @matches, @{$response->{'results'}};
+    }
+
+    say STDERR "(DEBUG) In full-text search: expected $total, actually retrieved " . (scalar @matches) . " matches.";
+
+    my @filtered_matches;
+
+    foreach my $match (@matches) {
+        # Rename 'key' to 'usageKey' for consistency with /lookup/name_usage
+        $match->{'usageKey'} = $match->{'key'};
+
+        # We need a 'relatedToUsageKey' to search on. Unfortunately, 
+        # actually figuring out the best GBIF Nub match would take
+        # a fairly long time.
+        $match->{'relatedToUsageKey'} = $match->{'key'};
+
+        # Only match names whose canonical name or scientific name is exactly identical to the search.
+        if($match->{'scientificName'} eq $name || $match->{'canonicalName'} eq $name) {
+            push @filtered_matches, $match;
+        }
+    }
+
+    return @filtered_matches;
 }
 
 sub summarize_name_usages {
