@@ -18,3 +18,4 @@ fi
 
 # Send it a SIGQUIT
 sudo su -c "kill -QUIT `cat $PID_PATH`" -s /bin/bash www-data
+sudo su -c "rm $PID_PATH" -s /bin/bash www-data
