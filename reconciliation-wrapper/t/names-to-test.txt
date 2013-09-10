@@ -1,0 +1,12 @@
+0. Names without any results in Map of Life, but with synonyms:
+ - Anser hutchinsii
+1. Names where we have records for both synonyms:
+ - Felis tigris
+ - Eutamias minimus
+ - Cleome serrulata
+2. Names where we match synonyms but TaxRefine thinks it's a binomial
+ - Antelope
+3. Names with multiple name options
+ - Ostrea glabra (GBIF Nub and CoL agree that the accepted name is Flexopecten glaber L.; however, CoL has an entry for "Ostrea glabra Jousseaume in Lamy, 1925" whose accepted name is listed as Nanostrea fluctigera)
+4. Manumiella druggii
+ - Found on EOL, but not on GBIF

@@ -16,7 +16,7 @@ use URI::Escape;
 use Time::HiRes qw/time/;
 
 # Version and settings.
-our $VERSION = '0.1-dev7';
+our $VERSION = '0.1-dev8';
 
 our $WEB_ROOT = '/gbifchecklists';
 
@@ -66,12 +66,14 @@ any "$WEB_ROOT/reconcile" => sub {
         $result = get_service_metadata();
     }
 
+    my $json_string = to_json($result, {utf8 => 1});
+
     if(defined $callback) {
         $response->content_type('application/javascript');
-        return "$callback(" . to_json($result) . ");";
+        return "$callback(" . $json_string . ");";
     } else {
         $response->content_type('application/json');
-        return to_json($result);
+        return $json_string;
     }
 };
 
@@ -121,6 +123,15 @@ sub process_query {
     my @results = get_gbif_name_usages_for_name($name);
     my $time_taken = (time - $request_time_start);
     printf STDERR "  Retrieved %d matches for '$name' in %.4f ms.\n", (scalar @results), $time_taken*1000;
+
+    if((scalar @results) == 0) { 
+        say STDERR "  No matches found, carrying out full-text search instead.";
+
+        @results = get_gbif_full_text_matches_for_name($name);
+
+        $time_taken = (time - $request_time_start);
+        printf STDERR "  Retrieved %d matches for '$name' in %.4f ms.\n", (scalar @results), $time_taken*1000;
+    }
 
     my @summarized = summarize_name_usages(@results);
     $time_taken = (time - $request_time_start);
@@ -239,6 +250,49 @@ sub get_gbif_name_usages_for_name {
     }
 
     return @gbif_related;
+}
+
+sub get_gbif_full_text_matches_for_name {
+    my $name = shift;
+
+    my @matches;
+
+    sub gbif_ft_search($$$) {
+        my $name = shift;
+        my $name_in_url = uri_escape($name);    # URLification.
+
+        my $offset = shift;
+        my $limit = shift;
+
+        my $response = retry_url_until_success("http://api.gbif.org/name_usage/search?q=$name_in_url&offset=$offset&limit=$limit");
+        return () unless ($response->is_success);
+        
+        my $content = $response->decoded_content;
+        return from_json($content);   # This will croak on error, i.e. if given invalid input.
+    }
+
+    # Limit total to 200 records.
+    my $response = gbif_ft_search($name, 0, 200);
+    my $total = $response->{'count'};
+    foreach my $result (@{$response->{'results'}}) {
+        push @matches, $result if 
+            (exists $result->{'scientificName'} && $result->{'scientificName'} eq $name) 
+            || (exists $result->{'canonicalName'} && $result->{'canonicalName'} eq $name);
+    }
+
+    # say STDERR "(DEBUG) In full-text search: expected $total, actually retrieved " . (scalar @matches) . " matches.";
+
+    foreach my $match (@matches) {
+        # Rename 'key' to 'usageKey' for consistency with /lookup/name_usage
+        $match->{'usageKey'} = $match->{'key'};
+
+        # We need a 'relatedToUsageKey' to search on. Unfortunately, 
+        # actually figuring out the best GBIF Nub match would take
+        # a fairly long time.
+        $match->{'relatedToUsageKey'} = $match->{'key'};
+    }
+
+    return @matches;
 }
 
 sub summarize_name_usages {
