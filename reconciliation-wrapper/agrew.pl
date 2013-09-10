@@ -269,21 +269,16 @@ sub get_gbif_full_text_matches_for_name {
         return from_json($content);   # This will croak on error, i.e. if given invalid input.
     }
 
-    my $response = gbif_ft_search($name, 0, 50);
+    # Limit total to 200 records.
+    my $response = gbif_ft_search($name, 0, 200);
     my $total = $response->{'count'};
-    push @matches, @{$response->{'results'}};
-
-    # Limit total to 500 records.
-    $total = 500 if $total > 500;
-
-    for(my $x = scalar(@matches); scalar(@matches) < $total; $x += 100) {
-        $response = gbif_ft_search($name, $x, $x + 100);
-        push @matches, @{$response->{'results'}};
+    foreach my $result (@{$response->{'results'}}) {
+        push @matches, $result if 
+            (exists $result->{'scientificName'} && $result->{'scientificName'} eq $name) 
+            || (exists $result->{'canonicalName'} && $result->{'canonicalName'} eq $name);
     }
 
-    say STDERR "(DEBUG) In full-text search: expected $total, actually retrieved " . (scalar @matches) . " matches.";
-
-    my @filtered_matches;
+    # say STDERR "(DEBUG) In full-text search: expected $total, actually retrieved " . (scalar @matches) . " matches.";
 
     foreach my $match (@matches) {
         # Rename 'key' to 'usageKey' for consistency with /lookup/name_usage
@@ -293,14 +288,9 @@ sub get_gbif_full_text_matches_for_name {
         # actually figuring out the best GBIF Nub match would take
         # a fairly long time.
         $match->{'relatedToUsageKey'} = $match->{'key'};
-
-        # Only match names whose canonical name or scientific name is exactly identical to the search.
-        if($match->{'scientificName'} eq $name || $match->{'canonicalName'} eq $name) {
-            push @filtered_matches, $match;
-        }
     }
 
-    return @filtered_matches;
+    return @matches;
 }
 
 sub summarize_name_usages {
