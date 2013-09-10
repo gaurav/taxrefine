@@ -9,3 +9,8 @@
 * URI (<tt>liburi-perl</tt>)
 * JSON (<tt>libjson-perl</tt>)
 * [http://search.cpan.org/~yanick/Dancer/ Dancer] (<tt>libdancer-perl</tt>)
+* Starman (<tt>starman</tt>)
+
+==Version history==
+* 0.1-dev7 (September 9, 2013)
+** Added support for GBIF API calls which find multiple matches, such as 'Ficus'.

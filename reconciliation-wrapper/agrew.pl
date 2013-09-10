@@ -16,7 +16,7 @@ use URI::Escape;
 use Time::HiRes qw/time/;
 
 # Version and settings.
-our $VERSION = '0.1-dev6';
+our $VERSION = '0.1-dev7';
 
 our $WEB_ROOT = '/gbifchecklists';
 
@@ -171,7 +171,7 @@ sub get_gbif_name_usages_for_name {
     my $name = shift;
     my $name_in_url = uri_escape($name);    # URLification.
 
-    my $response = retry_url_until_success("http://api.gbif.org/lookup/name_usage?strict=true&name=$name_in_url");
+    my $response = retry_url_until_success("http://api.gbif.org/lookup/name_usage?strict=true&verbose=true&name=$name_in_url");
     return unless ($response->is_success);
         
     my $content = $response->decoded_content;
@@ -182,33 +182,63 @@ sub get_gbif_name_usages_for_name {
     #   'matchType' of 'EXACT': perfect.
     my $gbif_nub_match = from_json($content);   # This will croak on error, i.e. if given invalid input.
 
-    given($gbif_nub_match->{'matchType'}) {
-        when('NONE') {
-            # No matches.
-            return;
-        }
+    my @gbif_nub_usage_ids;
 
-        when('FUZZY') {
-            # Ignore fuzzy matches for now. We'll deal with them eventually.
-            return;
+    # TODO: We're trusting in api.gbif.org to tell us when matches are not
+    sub addMatch {
+        my $usage_ids = shift;
+        my $match = shift;
+
+        given($match->{'matchType'}) {
+            when('NONE') {
+                # No matches ... but maybe there are alternatives?
+                my $alternatives = $match->{'alternatives'};
+                if($alternatives) {
+                    foreach my $alternative (@$alternatives) {
+                        addMatch($usage_ids, $alternative);
+                    }
+                }
+
+                return;
+            }
+
+            when('FUZZY') {
+                # Ignore fuzzy matches for now. We'll deal with them eventually.
+                return;
+            }
+
+            when('EXACT') {
+                push @$usage_ids, $match->{'usageKey'};
+                return;
+            }
         }
     }
 
-    my $nub_key = $gbif_nub_match->{'usageKey'};
+    addMatch(\@gbif_nub_usage_ids, $gbif_nub_match);
 
-    unless($nub_key =~ /^\d+$/) {
-        warn "ERROR: Invalid usageKey: got $nub_key, expected numeric; skipping request";
-        return;
+    my @gbif_related;
+
+    foreach my $nub_key (@gbif_nub_usage_ids) {
+        unless($nub_key =~ /^\d+$/) {
+            warn "ERROR: Invalid usageKey: got $nub_key, expected numeric; skipping request";
+            return;
+        }
+
+        # Find all related name usages to the taxon.
+        $response = retry_url_until_success("http://api.gbif.org/name_usage/$nub_key/related");
+        return unless ($response->is_success);
+
+        $content = $response->decoded_content;
+        my $gbif_related = from_json($content);
+
+        foreach my $related (@$gbif_related) {
+            $related->{'relatedToUsageKey'} = $nub_key;
+            push @gbif_related, $related;
+        }
+
     }
 
-    # Find all related name usages to the taxon.
-    $response = retry_url_until_success("http://api.gbif.org/name_usage/$nub_key/related");
-    return unless ($response->is_success);
-
-    $content = $response->decoded_content;
-    my $gbif_related = from_json($content);
-
-    return @$gbif_related;
+    return @gbif_related;
 }
 
 sub summarize_name_usages {
@@ -237,10 +267,16 @@ sub summarize_name_usages {
                     my @matches = @{$unique_matches{$name}{$accepted_name}{$authority}{$kingdom}};
 
                     # How do we summarize matches? EASY.
-                    my $gbif_key;
+
+                    # This is the GBIF Nub identifier we called: this way,
+                    # the 'id' will (almost) always be on GBIF Nub.
+                    my $gbif_key; 
 
                     my %summary;
                     foreach my $match (@matches) {
+                        $gbif_key = $match->{'relatedToUsageKey'}
+                            unless defined $gbif_key;
+
                         foreach my $field (keys %$match) {
                             my $value = $match->{$field};
 
@@ -250,14 +286,10 @@ sub summarize_name_usages {
                             $summary{$field}{$value} = 0
                                 unless exists $summary{$field}{$value};
                             $summary{$field}{$value}++;
-
-                            unless(defined $gbif_key) {
-                                if($field eq 'key') {
-                                    $gbif_key = $value;
-                                }
-                            }
                         }
                     }
+
+                    die "No gbif_key provided!" unless defined $gbif_key;
                     
                     # Further simplify fields common for ALL checklists.
                     my $match_count = scalar @matches;
@@ -274,7 +306,8 @@ sub summarize_name_usages {
                     my %result;
 
                     $result{'id'} = $gbif_key;
-                    $result{'name'} = "$name $authority";
+                    $result{'name'} = $name;
+                    $result{'name'} .=  " $authority" if ($authority ne '');
                     $result{'name'} .= " [=> $accepted_name]" unless $accepted_name eq '';
                     $result{'name'} .= " ($kingdom)";
                     $result{'type'} = ['http://uat.gbif.org/species/'];
