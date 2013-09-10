@@ -273,8 +273,11 @@ sub get_gbif_full_text_matches_for_name {
     my $total = $response->{'count'};
     push @matches, @{$response->{'results'}};
 
-    for(my $x = scalar(@matches); $x < $total; $x += 500) {
-        $response = gbif_ft_search($name, $x, $x + 500);
+    # Limit total to 500 records.
+    $total = 500 if $total > 500;
+
+    for(my $x = scalar(@matches); scalar(@matches) < $total; $x += 100) {
+        $response = gbif_ft_search($name, $x, $x + 100);
         push @matches, @{$response->{'results'}};
     }
 
