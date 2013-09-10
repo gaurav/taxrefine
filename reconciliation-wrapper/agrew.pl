@@ -66,12 +66,14 @@ any "$WEB_ROOT/reconcile" => sub {
         $result = get_service_metadata();
     }
 
+    my $json_string = to_json($result, {utf8 => 1});
+
     if(defined $callback) {
         $response->content_type('application/javascript');
-        return "$callback(" . to_json($result) . ");";
+        return "$callback(" . $json_string . ");";
     } else {
         $response->content_type('application/json');
-        return to_json($result);
+        return $json_string;
     }
 };
 
