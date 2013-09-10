@@ -16,7 +16,7 @@ use URI::Escape;
 use Time::HiRes qw/time/;
 
 # Version and settings.
-our $VERSION = '0.1-dev7';
+our $VERSION = '0.1-dev8';
 
 our $WEB_ROOT = '/gbifchecklists';
 
