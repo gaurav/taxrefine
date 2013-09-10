@@ -12,5 +12,7 @@
 * Starman (<tt>starman</tt>)
 
 ==Version history==
+* 0.1-dev8 (September 10, 2013)
+** Made some serverside fixes in response to bugs found during initial testing.
 * 0.1-dev7 (September 9, 2013)
 ** Added support for GBIF API calls which find multiple matches, such as 'Ficus'.
