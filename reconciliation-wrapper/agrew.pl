@@ -322,14 +322,11 @@ sub summarize_name_usages {
 
                     # How do we summarize matches? EASY.
 
-                    # This is the GBIF Nub identifier we called: this way,
-                    # the 'id' will (almost) always be on GBIF Nub.
-                    my $gbif_key; 
+                    my @gbif_keys; 
 
                     my %summary;
                     foreach my $match (@matches) {
-                        $gbif_key = $match->{'relatedToUsageKey'}
-                            unless defined $gbif_key;
+                        push @gbif_keys, $match->{'key'};
 
                         foreach my $field (keys %$match) {
                             my $value = $match->{$field};
@@ -343,7 +340,9 @@ sub summarize_name_usages {
                         }
                     }
 
-                    die "No gbif_key provided!" unless defined $gbif_key;
+                    @gbif_keys = sort { $b <=> $a } @gbif_keys;
+                    my $gbif_key = $gbif_keys[0];
+                    croak("No gbif_key provided!") unless defined $gbif_key;
                     
                     # Further simplify fields common for ALL checklists.
                     my $match_count = scalar @matches;
