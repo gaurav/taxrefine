@@ -9,3 +9,4 @@
 * URI (<tt>liburi-perl</tt>)
 * JSON (<tt>libjson-perl</tt>)
 * [http://search.cpan.org/~yanick/Dancer/ Dancer] (<tt>libdancer-perl</tt>)
+* Starman (<tt>starman</tt>)
