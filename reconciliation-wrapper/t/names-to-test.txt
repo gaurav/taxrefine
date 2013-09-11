@@ -8,5 +8,8 @@
  - Antelope
 3. Names with multiple name options
  - Ostrea glabra (GBIF Nub and CoL agree that the accepted name is Flexopecten glaber L.; however, CoL has an entry for "Ostrea glabra Jousseaume in Lamy, 1925" whose accepted name is listed as Nanostrea fluctigera)
-4. Manumiella druggii
- - Found on EOL, but not on GBIF
+4. Found on EOL, but not on GBIF
+ - Manumiella druggii
+5. Names where GBIF is wrong:
+ - Panthera (P. leo persica is marked as 'related' to Panthera, GBIF #2435194)
+    - The wrong canonical name ('P.') is being handed to us verbatim by GBIF.
