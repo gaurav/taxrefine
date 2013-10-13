@@ -182,7 +182,7 @@ sub get_gbif_name_usages_for_name {
     my $name = shift;
     my $name_in_url = uri_escape($name);    # URLification.
 
-    my $response = retry_url_until_success("http://api.gbif.org/lookup/name_usage?strict=true&verbose=true&name=$name_in_url");
+    my $response = retry_url_until_success("http://api.gbif.org/v0.9/species/match?strict=true&verbose=true&name=$name_in_url");
     return unless ($response->is_success);
         
     my $content = $response->decoded_content;
@@ -236,7 +236,7 @@ sub get_gbif_name_usages_for_name {
         }
 
         # Find all related name usages to the taxon.
-        $response = retry_url_until_success("http://api.gbif.org/name_usage/$nub_key/related");
+        $response = retry_url_until_success("http://api.gbif.org/v0.9/species/$nub_key/related");
         return unless ($response->is_success);
 
         $content = $response->decoded_content;
@@ -264,7 +264,7 @@ sub get_gbif_full_text_matches_for_name {
         my $offset = shift;
         my $limit = shift;
 
-        my $response = retry_url_until_success("http://api.gbif.org/name_usage/search?q=$name_in_url&offset=$offset&limit=$limit");
+        my $response = retry_url_until_success("http://api.gbif.org/v0.9/species/search?q=$name_in_url&offset=$offset&limit=$limit");
         return () unless ($response->is_success);
         
         my $content = $response->decoded_content;
