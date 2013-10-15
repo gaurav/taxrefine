@@ -16,7 +16,7 @@ use URI::Escape;
 use Time::HiRes qw/time/;
 
 # Version and settings.
-our $VERSION = '0.1-dev8';
+our $VERSION = '0.1-dev9';
 
 our $WEB_ROOT = '/gbifchecklists';
 
@@ -180,9 +180,9 @@ sub retry_url_until_success($) {
 
 sub get_gbif_name_usages_for_name {
     my $name = shift;
-    my $name_in_url = uri_escape($name);    # URLification.
+    my $name_in_url = uri_escape_utf8($name);    # URLification.
 
-    my $response = retry_url_until_success("http://api.gbif.org/lookup/name_usage?strict=true&verbose=true&name=$name_in_url");
+    my $response = retry_url_until_success("http://api.gbif.org/v0.9/species/match?strict=true&verbose=true&name=$name_in_url");
     return unless ($response->is_success);
         
     my $content = $response->decoded_content;
@@ -236,7 +236,7 @@ sub get_gbif_name_usages_for_name {
         }
 
         # Find all related name usages to the taxon.
-        $response = retry_url_until_success("http://api.gbif.org/name_usage/$nub_key/related");
+        $response = retry_url_until_success("http://api.gbif.org/v0.9/species/$nub_key/related");
         return unless ($response->is_success);
 
         $content = $response->decoded_content;
@@ -259,12 +259,12 @@ sub get_gbif_full_text_matches_for_name {
 
     sub gbif_ft_search($$$) {
         my $name = shift;
-        my $name_in_url = uri_escape($name);    # URLification.
+        my $name_in_url = uri_escape_utf8($name);    # URLification.
 
         my $offset = shift;
         my $limit = shift;
 
-        my $response = retry_url_until_success("http://api.gbif.org/name_usage/search?q=$name_in_url&offset=$offset&limit=$limit");
+        my $response = retry_url_until_success("http://api.gbif.org/v0.9/species/search?q=$name_in_url&offset=$offset&limit=$limit");
         return () unless ($response->is_success);
         
         my $content = $response->decoded_content;
@@ -322,14 +322,11 @@ sub summarize_name_usages {
 
                     # How do we summarize matches? EASY.
 
-                    # This is the GBIF Nub identifier we called: this way,
-                    # the 'id' will (almost) always be on GBIF Nub.
-                    my $gbif_key; 
+                    my @gbif_keys; 
 
                     my %summary;
                     foreach my $match (@matches) {
-                        $gbif_key = $match->{'relatedToUsageKey'}
-                            unless defined $gbif_key;
+                        push @gbif_keys, $match->{'key'};
 
                         foreach my $field (keys %$match) {
                             my $value = $match->{$field};
@@ -343,7 +340,9 @@ sub summarize_name_usages {
                         }
                     }
 
-                    die "No gbif_key provided!" unless defined $gbif_key;
+                    @gbif_keys = sort { $b <=> $a } @gbif_keys;
+                    my $gbif_key = $gbif_keys[0];
+                    croak("No gbif_key provided!") unless defined $gbif_key;
                     
                     # Further simplify fields common for ALL checklists.
                     my $match_count = scalar @matches;
