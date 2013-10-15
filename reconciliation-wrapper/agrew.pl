@@ -180,7 +180,7 @@ sub retry_url_until_success($) {
 
 sub get_gbif_name_usages_for_name {
     my $name = shift;
-    my $name_in_url = uri_escape($name);    # URLification.
+    my $name_in_url = uri_escape_utf8($name);    # URLification.
 
     my $response = retry_url_until_success("http://api.gbif.org/v0.9/species/match?strict=true&verbose=true&name=$name_in_url");
     return unless ($response->is_success);
@@ -259,7 +259,7 @@ sub get_gbif_full_text_matches_for_name {
 
     sub gbif_ft_search($$$) {
         my $name = shift;
-        my $name_in_url = uri_escape($name);    # URLification.
+        my $name_in_url = uri_escape_utf8($name);    # URLification.
 
         my $offset = shift;
         my $limit = shift;
