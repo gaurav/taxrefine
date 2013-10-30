@@ -114,10 +114,25 @@ sub process_query {
     my %query = %$query_ref;
 
     # Right now, we only use 'query'. Look up https://github.com/OpenRefine/OpenRefine/wiki/Reconciliation-Service-API#single-query-mode for other options.
-    # Ideas:
-    #   - use 'Family' for high-level filtering.
     my $name = $query{'query'};
     say STDERR "Query: '$name'";
+
+    # Load up properties; once we're done, you can access
+    # $properties{lc 'p'} = $properties{lc 'pid'} = $value;
+    my %properties;
+    if(exists $query{'properties'}) {
+        my @props = @{$query{'properties'}};
+
+        foreach my $prop (@props) {
+            my $value = $prop->{'v'};
+            $properties{lc $prop->{'p'}} = $value
+                if exists $prop->{'p'};
+            $properties{lc $prop->{'pid'}} = $value
+                if exists $prop->{'pid'};
+        }
+    }
+
+    # say STDERR "Props: " . Dumper(\%properties);
 
     my $request_time_start = time;
     my @results = get_gbif_match_all($name);
@@ -133,10 +148,31 @@ sub process_query {
         printf STDERR "  Retrieved %d matches for '$name' in %.4f ms.\n", (scalar @results), $time_taken*1000;
     }
 
+    # Filter out on the basis of kingdom.
+    my @filtered;
+    if(exists($properties{'kingdom'}) and ($properties{'kingdom'} ne '')) {
+        my $kingdom = $properties{'kingdom'};
+
+        foreach my $result (@results) {
+            if(not exists $result->{'kingdom'}) {
+                push @filtered, $result;
+            } elsif(lc($result->{'kingdom'}) eq lc($kingdom)) {
+                push @filtered, $result;
+            } else {
+                # Filter it out.
+                # push @filtered, $result;
+            }
+        }
+
+        @results = @filtered;
+    }
+
+    # Summarize results.
     my @summarized = summarize_name_usages(@results);
     $time_taken = (time - $request_time_start);
     printf STDERR "  Summarized '$name' to %d matches in %.4f ms.\n", (scalar @summarized), $time_taken*1000;
 
+    # Sort results.
     my @sorted_results = sort { $b->{'score'} <=> $a->{'score'} } @summarized;
 
     # Add a dummy result so we know that all results are getting through.
