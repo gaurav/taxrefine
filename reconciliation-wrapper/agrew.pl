@@ -81,12 +81,12 @@ any "$WEB_ROOT/reconcile" => sub {
 sub get_service_metadata {
     return {
         'name' => "agrew.pl (Api.Gbif.org REconciliation Wrapper)/$VERSION",
-        'identifierSpace' => 'http://uat.gbif.org/species/',
+        'identifierSpace' => 'http://www.gbif.org/species/',
         'view' => {
-            'url' => 'http://uat.gbif.org/species/{{id}}#overview'
+            'url' => 'http://www.gbif.org/species/{{id}}#overview'
         },
         'preview' => {
-            'url' => 'http://uat.gbif.org/species/{{id}}#overview',
+            'url' => 'http://www.gbif.org/species/{{id}}#overview',
             'width' => 700,
             'height' => 350 
         },
@@ -363,7 +363,7 @@ sub summarize_name_usages {
                     $result{'name'} .=  " $authority" if ($authority ne '');
                     $result{'name'} .= " [=> $accepted_name]" unless $accepted_name eq '';
                     $result{'name'} .= " ($kingdom)";
-                    $result{'type'} = ['http://uat.gbif.org/species/'];
+                    $result{'type'} = ['http://www.gbif.org/species/'];
                     $result{'score'} = scalar @matches;
                     $result{'match'} = $JSON::false;
                     $result{'summary'} = \%summary;
