@@ -120,7 +120,7 @@ sub process_query {
     say STDERR "Query: '$name'";
 
     my $request_time_start = time;
-    my @results = get_gbif_name_usages_for_name($name);
+    my @results = get_gbif_match_all($name);
     my $time_taken = (time - $request_time_start);
     printf STDERR "  Retrieved %d matches for '$name' in %.4f ms.\n", (scalar @results), $time_taken*1000;
 
@@ -178,9 +178,41 @@ sub retry_url_until_success($) {
     return $response;
 }
 
-sub get_gbif_name_usages_for_name {
+sub gbif_match_search($$$) {
     my $name = shift;
     my $name_in_url = uri_escape_utf8($name);    # URLification.
+
+    my $offset = shift;
+    my $limit = shift;
+
+    my $response = retry_url_until_success("http://api.gbif.org/v0.9/species?name=$name_in_url&offset=$offset&limit=$limit");
+    return () unless ($response->is_success);
+    
+    my $content = $response->decoded_content;
+    return from_json($content);   # This will croak on error, i.e. if given invalid input.
+}
+
+sub get_gbif_match_all {
+    my $name = shift;
+
+    # We just get the top 200.
+    my $response = gbif_match_search($name, 0, 200);    
+    return () unless exists $response->{'results'};
+
+    # Parse the results.
+    my @results = @{$response->{'results'}};
+    my @gbif_results;
+
+    foreach my $result (@results) {
+        push @gbif_results, $result;
+    }
+
+    return @gbif_results;
+}
+
+sub get_gbif_nub_match_and_related {
+    my $name = shift;
+    my $name_in_url = uri_escape_utf8($name);   # URLification.
 
     my $response = retry_url_until_success("http://api.gbif.org/v0.9/species/match?strict=true&verbose=true&name=$name_in_url");
     return unless ($response->is_success);
@@ -252,24 +284,25 @@ sub get_gbif_name_usages_for_name {
     return @gbif_related;
 }
 
+sub gbif_ft_search($$$) {
+    my $name = shift;
+    my $name_in_url = uri_escape_utf8($name);    # URLification.
+
+    my $offset = shift;
+    my $limit = shift;
+
+    my $response = retry_url_until_success("http://api.gbif.org/v0.9/species/search?q=$name_in_url&offset=$offset&limit=$limit");
+    return () unless ($response->is_success);
+    
+    my $content = $response->decoded_content;
+    return from_json($content);   # This will croak on error, i.e. if given invalid input.
+}
+
+
 sub get_gbif_full_text_matches_for_name {
     my $name = shift;
 
     my @matches;
-
-    sub gbif_ft_search($$$) {
-        my $name = shift;
-        my $name_in_url = uri_escape_utf8($name);    # URLification.
-
-        my $offset = shift;
-        my $limit = shift;
-
-        my $response = retry_url_until_success("http://api.gbif.org/v0.9/species/search?q=$name_in_url&offset=$offset&limit=$limit");
-        return () unless ($response->is_success);
-        
-        my $content = $response->decoded_content;
-        return from_json($content);   # This will croak on error, i.e. if given invalid input.
-    }
 
     # Limit total to 200 records.
     my $response = gbif_ft_search($name, 0, 200);
