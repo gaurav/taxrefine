@@ -191,7 +191,7 @@ sub process_query {
     return { 'result' => \@sorted_results };
 }
 
-our $LIMIT_URL_RETRIES = 10;    # How often should this code try a URL (GET) request?
+our $LIMIT_URL_RETRIES = 1;    # How often should this code try a URL (GET) request?
 our $SLEEP_BETWEEN_URL_RETRIES = 2; # How long should this code sleep between URL retries?
 
 sub retry_url_until_success($) {
@@ -251,7 +251,7 @@ sub get_gbif_nub_match_and_related {
     my $name_in_url = uri_escape_utf8($name);   # URLification.
 
     my $response = retry_url_until_success("http://api.gbif.org/v0.9/species/match?strict=true&verbose=true&name=$name_in_url");
-    return unless ($response->is_success);
+    return () unless ($response->is_success);
         
     my $content = $response->decoded_content;
 
@@ -305,7 +305,7 @@ sub get_gbif_nub_match_and_related {
 
         # Find all related name usages to the taxon.
         $response = retry_url_until_success("http://api.gbif.org/v0.9/species/$nub_key/related");
-        return unless ($response->is_success);
+        return () unless ($response->is_success);
 
         $content = $response->decoded_content;
         my $gbif_related = from_json($content);
