@@ -43,4 +43,4 @@ def get_matches_from_taxrefine(name, datasets = []):
 
 def get_url_for_id(id): 
     # TODO: check that id is purely number
-    return "http://gbif.org/species/" + id
+    return "http://gbif.org/species/" + str(id)
