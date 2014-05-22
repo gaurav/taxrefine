@@ -19,27 +19,31 @@ cmdline.add_argument('-fieldname',
     default = 'scientificName')
 cmdline.add_argument('-internal',
     nargs='?',
-    type=argparse.FileType('r'),
+    type=str,
     help='Internal list of name corrections (must be a CSV file)')
 
 args = cmdline.parse_args()
 
 # Load the entire internal list, if it exists.
 internal_corrections = dict()
+ic_fieldnames = None
 if args.internal:
-    reader = csv.DictReader(args.internal, dialect=csv.excel)
+    reader = csv.DictReader(open(args.internal, "r"), dialect=csv.excel)
+    ic_fieldnames = reader.fieldnames
     row_index = 0
     for row in reader:
         row_index+=1
         scname = row['scientificName']
         if scname == None:
             raise RuntimeError('No scientific name on row {0:d}'.format(row_index))
-        if scname in internal_corrections:
+        elif scname in internal_corrections:
             raise RuntimeError('Duplicate scientificName detected: "{0:d}"'.format(scname))
-        internal_corrections[scname] = row
+        else:
+            internal_corrections[scname] = row
 
 # Our input should be a CSV or text delimited.
 timestamp = datetime.datetime.now().strftime("%x")
+unmatched_names = []
 for input in args.input:
     try:
         dialect = csv.Sniffer().sniff(input.read(1024), delimiters="\t,;|")
@@ -80,13 +84,29 @@ for input in args.input:
             matched_source = "internal (as of " + timestamp + ")"
         else:
             matches = gbif_api.get_matches_from_taxrefine(name)
-            if len(matches) > 0: 
+            if len(matches) > 0:
                 matched_scname = matches[0]['name']
                 matched_url = gbif_api.get_url_for_id(matches[0]['id'])
                 matched_source = "TaxRefine/GBIF API queried on " + timestamp
+            else: 
+                unmatched_names.append(name)
 
         row['matched_scname'] = matched_scname
         row['matched_url'] = matched_url
         row['matched_source'] = matched_source
 
         output.writerow(row)
+
+if args.internal and len(unmatched_names) > 0:
+    internal_file = open(args.internal, mode="a")
+    writer = csv.DictWriter(internal_file, ic_fieldnames, dialect=csv.excel)
+    
+    dict_row = dict()
+    for colname in ic_fieldnames:
+        dict_row[colname] = None
+
+    for name in unmatched_names:
+        dict_row['scientificName'] = name
+        writer.writerow(dict_row)
+
+    internal_file.close()
