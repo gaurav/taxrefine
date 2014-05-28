@@ -12,6 +12,10 @@
 * Starman (<tt>starman</tt>)
 
 ==Version history==
+* 0.1-dev10 (October 29, 2013)
+** Fixed URLs which still referred to uat.gbif.org.
+** Went back to the API call which searches for the query name across all of GBIF.
+** Added a 'kingdom'-based filter to pick a filter.
 * 0.1-dev9 (October 15, 2013)
 ** Fixed a bug which caused 500 errors with names containing UTF-8 characters.
 ** Changed URLs to GBIF API v0.9.

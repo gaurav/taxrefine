@@ -81,12 +81,12 @@ any "$WEB_ROOT/reconcile" => sub {
 sub get_service_metadata {
     return {
         'name' => "agrew.pl (Api.Gbif.org REconciliation Wrapper)/$VERSION",
-        'identifierSpace' => 'http://uat.gbif.org/species/',
+        'identifierSpace' => 'http://www.gbif.org/species/',
         'view' => {
-            'url' => 'http://uat.gbif.org/species/{{id}}#overview'
+            'url' => 'http://www.gbif.org/species/{{id}}#overview'
         },
         'preview' => {
-            'url' => 'http://uat.gbif.org/species/{{id}}#overview',
+            'url' => 'http://www.gbif.org/species/{{id}}#overview',
             'width' => 700,
             'height' => 350 
         },
@@ -114,13 +114,28 @@ sub process_query {
     my %query = %$query_ref;
 
     # Right now, we only use 'query'. Look up https://github.com/OpenRefine/OpenRefine/wiki/Reconciliation-Service-API#single-query-mode for other options.
-    # Ideas:
-    #   - use 'Family' for high-level filtering.
     my $name = $query{'query'};
     say STDERR "Query: '$name'";
 
+    # Load up properties; once we're done, you can access
+    # $properties{lc 'p'} = $properties{lc 'pid'} = $value;
+    my %properties;
+    if(exists $query{'properties'}) {
+        my @props = @{$query{'properties'}};
+
+        foreach my $prop (@props) {
+            my $value = $prop->{'v'};
+            $properties{lc $prop->{'p'}} = $value
+                if exists $prop->{'p'};
+            $properties{lc $prop->{'pid'}} = $value
+                if exists $prop->{'pid'};
+        }
+    }
+
+    # say STDERR "Props: " . Dumper(\%properties);
+
     my $request_time_start = time;
-    my @results = get_gbif_name_usages_for_name($name);
+    my @results = get_gbif_match_all($name);
     my $time_taken = (time - $request_time_start);
     printf STDERR "  Retrieved %d matches for '$name' in %.4f ms.\n", (scalar @results), $time_taken*1000;
 
@@ -133,10 +148,31 @@ sub process_query {
         printf STDERR "  Retrieved %d matches for '$name' in %.4f ms.\n", (scalar @results), $time_taken*1000;
     }
 
+    # Filter out on the basis of kingdom.
+    my @filtered;
+    if(exists($properties{'kingdom'}) and ($properties{'kingdom'} ne '')) {
+        my $kingdom = $properties{'kingdom'};
+
+        foreach my $result (@results) {
+            if(not exists $result->{'kingdom'}) {
+                push @filtered, $result;
+            } elsif(lc($result->{'kingdom'}) eq lc($kingdom)) {
+                push @filtered, $result;
+            } else {
+                # Filter it out.
+                # push @filtered, $result;
+            }
+        }
+
+        @results = @filtered;
+    }
+
+    # Summarize results.
     my @summarized = summarize_name_usages(@results);
     $time_taken = (time - $request_time_start);
     printf STDERR "  Summarized '$name' to %d matches in %.4f ms.\n", (scalar @summarized), $time_taken*1000;
 
+    # Sort results.
     my @sorted_results = sort { $b->{'score'} <=> $a->{'score'} } @summarized;
 
     # Add a dummy result so we know that all results are getting through.
@@ -155,7 +191,7 @@ sub process_query {
     return { 'result' => \@sorted_results };
 }
 
-our $LIMIT_URL_RETRIES = 10;    # How often should this code try a URL (GET) request?
+our $LIMIT_URL_RETRIES = 1;    # How often should this code try a URL (GET) request?
 our $SLEEP_BETWEEN_URL_RETRIES = 2; # How long should this code sleep between URL retries?
 
 sub retry_url_until_success($) {
@@ -178,12 +214,44 @@ sub retry_url_until_success($) {
     return $response;
 }
 
-sub get_gbif_name_usages_for_name {
+sub gbif_match_search($$$) {
     my $name = shift;
     my $name_in_url = uri_escape_utf8($name);    # URLification.
 
+    my $offset = shift;
+    my $limit = shift;
+
+    my $response = retry_url_until_success("http://api.gbif.org/v0.9/species?name=$name_in_url&offset=$offset&limit=$limit");
+    return () unless ($response->is_success);
+    
+    my $content = $response->decoded_content;
+    return from_json($content);   # This will croak on error, i.e. if given invalid input.
+}
+
+sub get_gbif_match_all {
+    my $name = shift;
+
+    # We just get the top 200.
+    my $response = gbif_match_search($name, 0, 200);    
+    return () unless exists $response->{'results'};
+
+    # Parse the results.
+    my @results = @{$response->{'results'}};
+    my @gbif_results;
+
+    foreach my $result (@results) {
+        push @gbif_results, $result;
+    }
+
+    return @gbif_results;
+}
+
+sub get_gbif_nub_match_and_related {
+    my $name = shift;
+    my $name_in_url = uri_escape_utf8($name);   # URLification.
+
     my $response = retry_url_until_success("http://api.gbif.org/v0.9/species/match?strict=true&verbose=true&name=$name_in_url");
-    return unless ($response->is_success);
+    return () unless ($response->is_success);
         
     my $content = $response->decoded_content;
 
@@ -237,7 +305,7 @@ sub get_gbif_name_usages_for_name {
 
         # Find all related name usages to the taxon.
         $response = retry_url_until_success("http://api.gbif.org/v0.9/species/$nub_key/related");
-        return unless ($response->is_success);
+        return () unless ($response->is_success);
 
         $content = $response->decoded_content;
         my $gbif_related = from_json($content);
@@ -252,24 +320,25 @@ sub get_gbif_name_usages_for_name {
     return @gbif_related;
 }
 
+sub gbif_ft_search($$$) {
+    my $name = shift;
+    my $name_in_url = uri_escape_utf8($name);    # URLification.
+
+    my $offset = shift;
+    my $limit = shift;
+
+    my $response = retry_url_until_success("http://api.gbif.org/v0.9/species/search?q=$name_in_url&offset=$offset&limit=$limit");
+    return () unless ($response->is_success);
+    
+    my $content = $response->decoded_content;
+    return from_json($content);   # This will croak on error, i.e. if given invalid input.
+}
+
+
 sub get_gbif_full_text_matches_for_name {
     my $name = shift;
 
     my @matches;
-
-    sub gbif_ft_search($$$) {
-        my $name = shift;
-        my $name_in_url = uri_escape_utf8($name);    # URLification.
-
-        my $offset = shift;
-        my $limit = shift;
-
-        my $response = retry_url_until_success("http://api.gbif.org/v0.9/species/search?q=$name_in_url&offset=$offset&limit=$limit");
-        return () unless ($response->is_success);
-        
-        my $content = $response->decoded_content;
-        return from_json($content);   # This will croak on error, i.e. if given invalid input.
-    }
 
     # Limit total to 200 records.
     my $response = gbif_ft_search($name, 0, 200);
@@ -363,7 +432,7 @@ sub summarize_name_usages {
                     $result{'name'} .=  " $authority" if ($authority ne '');
                     $result{'name'} .= " [=> $accepted_name]" unless $accepted_name eq '';
                     $result{'name'} .= " ($kingdom)";
-                    $result{'type'} = ['http://uat.gbif.org/species/'];
+                    $result{'type'} = ['http://www.gbif.org/species/'];
                     $result{'score'} = scalar @matches;
                     $result{'match'} = $JSON::false;
                     $result{'summary'} = \%summary;
