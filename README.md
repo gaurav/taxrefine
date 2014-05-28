@@ -1,8 +1,29 @@
 # taxrefine
 
-TaxRefine: OpenRefine utilities for taxon name validation
+OpenRefine utilities for taxon name validation.
 
-## Tasks we need to be able to perform
+## What TaxRefine does
+
+TaxRefine summarizes search results from the GBIF API to try to pick the best supported interpretation of a 
+particular name from across the hundreds of checklists assembled by GBIF.
+
+TaxRefine is a wrapper around [GBIF's Search Names](http://www.gbif.org/developer/species#searching).
+It searches for names on the GBIF Nub using the `/species/match` API query; if it finds no matches,
+it uses the `/species/search` to look for the exact name on other checklists.
+
+Once it finds a match, it finds the list of related names on GBIF (using the 
+`/species/{int}/related` API query). It then goes through all these related names and
+groups them on the basis of four criteria:
+
+1. Scientific name
+2. Accepted name
+3. Authority
+4. Kingdom
+
+It returns them sorted by the number of checklists matched in each group. For each group, 
+it also generates a summary of possible values (this might still be a little buggy).
+
+## Tasks we might want to do
 
 We hope to meet the following uses:
 
