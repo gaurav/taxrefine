@@ -48,7 +48,7 @@ for input in args.input:
     try:
         dialect = csv.Sniffer().sniff(input.read(1024), delimiters="\t,;|")
         input.seek(0)
-        reader = csv.DictReader(input, dialect)
+        reader = csv.DictReader(input, dialect=csv.excel)
         header = reader.fieldnames()
     except csv.Error as e:
         # let's assume it's a plain-text file with a header
