@@ -409,7 +409,9 @@ sub summarize_name_usages {
                         }
                     }
 
-                    @gbif_keys = sort { $b <=> $a } @gbif_keys;
+                    # Sort ascending numerically, so the smallest
+                    # (i.e. oldest) GBIF ID is more likely to be used.
+                    @gbif_keys = sort { $a <=> $b } @gbif_keys;
                     my $gbif_key = $gbif_keys[0];
                     croak("No gbif_key provided!") unless defined $gbif_key;
                     
