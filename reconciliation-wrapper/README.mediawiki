@@ -12,6 +12,8 @@
 * Starman (<tt>starman</tt>)
 
 ==Version history==
+* 0.1-dev11 (December 18, 2015)
+** Reordered search to return the lowest GBIF ID (i.e. the oldest one), see issue [https://github.com/gaurav/taxrefine/issues/17 #17].
 * 0.1-dev10 (October 29, 2013)
 ** Fixed URLs which still referred to uat.gbif.org.
 ** Went back to the API call which searches for the query name across all of GBIF.
